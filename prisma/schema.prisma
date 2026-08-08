@@ -1,0 +1,266 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model InvestigationCase {
+  id             String         @id
+  caseNumber     String         @unique
+  title          String
+  status         String
+  authorityRef   String
+  accessScope    String
+  expiresAt      DateTime
+  createdAt      DateTime       @default(now())
+  permittedRoles String
+  watchlists     Watchlist[]
+  sightings      Sighting[]
+  placeLeads     PlaceLead[]
+  trainingDatasets TrainingDataset[]
+  modelFindings  ModelFinding[]
+  jobs           SearchJob[]
+  receipts       MediaReceipt[]
+
+  @@index([status, expiresAt])
+}
+
+model User {
+  id           String    @id
+  email        String    @unique
+  displayName  String
+  passwordHash String
+  role         String
+  status       String    @default("active")
+  createdAt    DateTime  @default(now())
+  sessions     Session[]
+}
+
+model Session {
+  id         String   @id
+  tokenHash  String   @unique
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+model Watchlist {
+  id              String            @id
+  caseId          String
+  case            InvestigationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  plate           String
+  plateNormalized String
+  vehicleMake     String?
+  vehicleModel    String?
+  vehicleColor    String?
+  vehicleType     String?
+  expiresAt       DateTime
+  accessScope     String
+  status          String
+  createdAt       DateTime          @default(now())
+  sightings       Sighting[]
+
+  @@index([caseId, status, expiresAt])
+}
+
+model Camera {
+  id                     String   @id
+  name                   String
+  owner                  String
+  sourceType             String
+  status                 String
+  direction              String
+  latitude               Float
+  longitude              Float
+  locationLabel          String
+  retentionDays          Int
+  authorizationRef       String
+  authorizationExpiresAt DateTime?
+  lastHeartbeatAt        DateTime?
+  sightings              Sighting[]
+}
+
+model EdgeAgent {
+  id              String    @id
+  name            String
+  status          String
+  lastHeartbeatAt DateTime?
+  scopes          String
+  keyHash         String    @unique
+}
+
+model Sighting {
+  id                    String            @id
+  eventId               String            @unique
+  caseId                String
+  case                  InvestigationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  watchlistId           String
+  watchlist             Watchlist         @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+  cameraId              String
+  camera                Camera            @relation(fields: [cameraId], references: [id])
+  capturedAt            DateTime
+  confidence            Float
+  plateRead             String?
+  direction             String
+  status                String
+  routeState            String
+  evidenceId            String
+  evidenceKind          String
+  evidenceChecksum      String
+  evidenceRetentionUntil DateTime?
+  reviewerReason        String?
+  reviewedAt            DateTime?
+  reviewedBy            String?
+
+  @@index([caseId, status, capturedAt])
+}
+
+model PlaceLead {
+  id              String            @id
+  caseId          String
+  case            InvestigationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  sourceHash      String
+  sourceFilename  String?
+  sourceKind      String
+  provider        String
+  label           String?
+  address         String?
+  confidence      Float?
+  latitude        Float?
+  longitude       Float?
+  status          String
+  explanation     String?
+  createdAt       DateTime          @default(now())
+  reviewedAt      DateTime?
+  reviewedBy      String?
+  reviewerReason  String?
+  modelFindings   ModelFinding[]
+
+  @@index([caseId, status, createdAt])
+}
+
+model TrainingDataset {
+  id                String            @id
+  caseId            String
+  case              InvestigationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  name              String
+  task              String
+  description       String?
+  authorizationRef  String
+  storageRegion     String
+  labelSchemaJson   String
+  status            String
+  createdAt         DateTime          @default(now())
+  createdBy         String
+  examples          TrainingExample[]
+  models            ModelProfile[]
+
+  @@index([caseId, status, createdAt])
+}
+
+model TrainingExample {
+  id                  String          @id
+  datasetId           String
+  dataset             TrainingDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  sourceHash          String
+  storageReference    String
+  checksum            String
+  sourceFilename      String?
+  mimeType            String
+  submitterAuthority  String
+  annotationJson      String
+  annotationStatus    String
+  createdAt           DateTime        @default(now())
+  reviewedAt          DateTime?
+  reviewedBy          String?
+
+  @@unique([datasetId, sourceHash])
+  @@index([datasetId, annotationStatus, createdAt])
+}
+
+model ModelProfile {
+  id                 String          @id
+  datasetId          String
+  dataset            TrainingDataset @relation(fields: [datasetId], references: [id], onDelete: Restrict)
+  name               String
+  provider           String
+  task               String
+  version            String
+  status             String
+  metricsJson        String
+  approvalRef        String
+  createdAt          DateTime        @default(now())
+  approvedAt         DateTime?
+  approvedBy         String?
+  findings           ModelFinding[]
+
+  @@index([datasetId, status, task])
+}
+
+model ModelFinding {
+  id                 String            @id
+  caseId             String
+  case               InvestigationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  placeLeadId        String?
+  placeLead          PlaceLead?        @relation(fields: [placeLeadId], references: [id], onDelete: SetNull)
+  modelId            String
+  model              ModelProfile      @relation(fields: [modelId], references: [id], onDelete: Restrict)
+  sourceHash         String
+  task               String
+  evidenceJson       String
+  confidence         Float
+  evidenceScore      Float
+  status             String
+  explanation        String?
+  createdAt          DateTime          @default(now())
+  reviewedAt         DateTime?
+  reviewedBy         String?
+  reviewerReason     String?
+
+  @@index([caseId, status, createdAt])
+  @@index([modelId, createdAt])
+}
+
+model SearchJob {
+  id                String            @id
+  caseId            String
+  case              InvestigationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  status            String
+  createdAt         DateTime          @default(now())
+  evidenceId        String
+  evidenceChecksum  String
+  scope             String
+  activeCaseOnly    Boolean           @default(true)
+  authorizedFeedsOnly Boolean         @default(true)
+  reviewerRequired  Boolean           @default(true)
+}
+
+model MediaReceipt {
+  id                 String            @id
+  caseId             String
+  case               InvestigationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  storageReference   String
+  checksum           String
+  submitterAuthority String
+  receivedAt         DateTime          @default(now())
+}
+
+model AuditLog {
+  id           String   @id
+  at           DateTime @default(now())
+  actor        String
+  role         String
+  action       String
+  resource     String
+  detailJson   String
+  previousHash String?
+  hash         String   @unique
+
+  @@index([at])
+}
