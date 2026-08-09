@@ -20,6 +20,7 @@ model InvestigationCase {
   sightings      Sighting[]
   placeLeads     PlaceLead[]
   trainingDatasets TrainingDataset[]
+  trainingExamples TrainingExample[]
   modelFindings  ModelFinding[]
   jobs           SearchJob[]
   receipts       MediaReceipt[]
@@ -156,24 +157,33 @@ model TrainingDataset {
   storageRegion     String
   labelSchemaJson   String
   status            String
+  expiresAt         DateTime?
   createdAt         DateTime          @default(now())
   createdBy         String
   examples          TrainingExample[]
   models            ModelProfile[]
+  evaluations       ModelEvaluation[]
 
-  @@index([caseId, status, createdAt])
+  @@index([caseId, status, expiresAt])
 }
 
 model TrainingExample {
   id                  String          @id
   datasetId           String
   dataset             TrainingDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  caseId              String
+  case                InvestigationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
   sourceHash          String
   storageReference    String
   checksum            String
   sourceFilename      String?
   mimeType            String
   submitterAuthority  String
+  license             String
+  provenance          String
+  authorizationRef    String
+  collectionTimestamp DateTime
+  retentionUntil      DateTime
   annotationJson      String
   annotationStatus    String
   createdAt           DateTime        @default(now())
@@ -182,6 +192,7 @@ model TrainingExample {
 
   @@unique([datasetId, sourceHash])
   @@index([datasetId, annotationStatus, createdAt])
+  @@index([caseId, retentionUntil])
 }
 
 model ModelProfile {
@@ -195,10 +206,13 @@ model ModelProfile {
   status             String
   metricsJson        String
   approvalRef        String
+  endpointReference  String?
   createdAt          DateTime        @default(now())
   approvedAt         DateTime?
   approvedBy         String?
+  approvalExpiresAt  DateTime?
   findings           ModelFinding[]
+  evaluations        ModelEvaluation[]
 
   @@index([datasetId, status, task])
 }
@@ -218,6 +232,12 @@ model ModelFinding {
   evidenceScore      Float
   status             String
   explanation        String?
+  provider           String?
+  modelVersion       String?
+  recommendation     String?
+  outputJson         String?
+  correlationId      String?
+  requestHash        String?           @unique
   createdAt          DateTime          @default(now())
   reviewedAt         DateTime?
   reviewedBy         String?
@@ -225,6 +245,23 @@ model ModelFinding {
 
   @@index([caseId, status, createdAt])
   @@index([modelId, createdAt])
+}
+
+model ModelEvaluation {
+  id            String       @id
+  modelId       String
+  model         ModelProfile @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  datasetId     String
+  dataset       TrainingDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  metricsJson   String
+  splitStrategy String
+  evaluationRef String
+  status        String
+  evaluatedBy   String
+  createdAt     DateTime     @default(now())
+
+  @@index([modelId, createdAt])
+  @@index([datasetId, status])
 }
 
 model SearchJob {

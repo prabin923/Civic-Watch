@@ -85,11 +85,11 @@ function Landing({ onLogin }) {
   </main>;
 }
 
-export default function Portal() {
+export default function Portal({ initialView = 'overview' }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => { authRequest('/api/auth/me').then((result) => setUser(result.user)).catch(() => {}).finally(() => setLoading(false)); }, []);
   if (loading) return <main className="grid min-h-screen place-items-center bg-[#f5f1e4] text-sm text-[#80827f]">Checking secure session…</main>;
   if (!user) return <Landing onLogin={setUser} />;
-  return <InvestigationConsole authenticatedUser={user} onLogout={async () => { await authRequest('/api/auth/logout', { method: 'POST' }); setUser(null); }} />;
+  return <InvestigationConsole initialView={initialView} authenticatedUser={user} onLogout={async () => { await authRequest('/api/auth/logout', { method: 'POST' }); setUser(null); }} />;
 }
